@@ -1,12 +1,5 @@
 // radio/App/MainTabView.swift
 
-//
-//  MainTabView.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
 import SwiftUI
 
 struct MainTabView: View {
@@ -23,11 +16,13 @@ struct MainTabView: View {
             Tab(AppTab.programacion.title, systemImage: AppTab.programacion.systemImage, value: AppTab.programacion) {
                 ScheduleView()
             }
-            Tab(AppTab.buscar.title, systemImage: AppTab.buscar.systemImage, value: AppTab.buscar) {
+            Tab(AppTab.podcast.title, systemImage: AppTab.podcast.systemImage, value: AppTab.podcast) {
+                PodcastView()
+            }
+            // role: .search makes the system show it as its own capsule.
+            Tab(AppTab.buscar.title, systemImage: AppTab.buscar.systemImage, value: AppTab.buscar, role: .search) {
                 BuscarView()
             }
-            // Programación, Calendario and Buscar are added back one at a time.
-        
         }
         .tabViewStyle(.sidebarAdaptable)
     }
@@ -37,4 +32,5 @@ struct MainTabView: View {
     MainTabView()
         .environment(SessionStore(previewState: .ready(UserProfile(profileType: .invitado, careerId: nil))))
         .environment(RadioPlayerManager())
+        .environment(PodcastPlayerManager())
 }

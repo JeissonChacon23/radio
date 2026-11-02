@@ -1,13 +1,5 @@
 // radio/App/RootView.swift
 
-//
-//  RootView.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-// radio/App/RootView.swift
-
 import SwiftUI
 
 struct RootView: View {
@@ -46,16 +38,19 @@ struct RootView: View {
     RootView()
         .environment(SessionStore(previewState: .signedOut))
         .environment(RadioPlayerManager())
+        .environment(PodcastPlayerManager())
 }
 
 #Preview("Con sesión") {
     RootView()
         .environment(SessionStore(previewState: .ready(UserProfile(profileType: .invitado, careerId: nil))))
         .environment(RadioPlayerManager())
+        .environment(PodcastPlayerManager())
 }
 
 #Preview("Error") {
     RootView()
         .environment(SessionStore(previewState: .failed("No se pudo cargar tu perfil. Revisa tu conexión e inténtalo de nuevo.")))
         .environment(RadioPlayerManager())
+        .environment(PodcastPlayerManager())
 }

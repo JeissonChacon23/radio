@@ -1,11 +1,5 @@
 // radio/Features/Programacion/Model/ProgramacionModels.swift
 
-//
-//  ProgramacionModels.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
 import Foundation
 
 struct Programa: Identifiable, Hashable {
@@ -16,9 +10,12 @@ struct Programa: Identifiable, Hashable {
     let durationMinutes: Int
     let collective: String
     let hosts: [String]
+    let artworkDriveId: String
 }
 
 extension Programa {
+    var artworkId: String? { artworkDriveId.isEmpty ? nil : artworkDriveId }
+
     var startMinutes: Int {
         let parts = startTime.split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return 0 }
@@ -27,6 +24,19 @@ extension Programa {
 
     var timeRangeText: String {
         "\(Self.timeText(minutes: startMinutes)) – \(Self.timeText(minutes: startMinutes + durationMinutes))"
+    }
+
+    /// Uses Colombia time, because the schedule is the station's.
+    func isOnAir(at date: Date = .now) -> Bool {
+        let now = RadioClock.now(date)
+        let end = startMinutes + durationMinutes
+
+        if days.contains(now.isoDay), now.minutes >= startMinutes, now.minutes < end {
+            return true
+        }
+        // A program that crosses midnight is still on air after 00:00 of the next day.
+        let previousDay = now.isoDay == 1 ? 7 : now.isoDay - 1
+        return days.contains(previousDay) && end > 24 * 60 && now.minutes + 24 * 60 < end
     }
 
     private static func timeText(minutes: Int) -> String {
