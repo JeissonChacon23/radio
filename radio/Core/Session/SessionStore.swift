@@ -7,8 +7,6 @@
 //  Created by Foster Chacon on 22/10/26.
 //
 
-// radio/Core/Session/SessionStore.swift
-
 import Foundation
 import Observation
 import FirebaseAuth
@@ -78,20 +76,63 @@ final class SessionStore {
         try await Auth.auth().sendPasswordReset(withEmail: email)
     }
 
-    func saveProfile(type: ProfileType, careerId: String?) async throws {
-        guard let userId else { throw SessionError.noUser }
+    func editProfile() {
+        state = .needsProfile
+    }
+
+    func saveProfile(type: ProfileType, careerId: String?, departmentId: String? = nil) async throws {
+        guard let uid = userId ?? Auth.auth().currentUser?.uid else { throw SessionError.noUser }
+        userId = uid
+
+        let resolvedCareerId = type.requiresProgram ? careerId : nil
+        let resolvedDepartmentId: String? = {
+            if let departmentId, !departmentId.isEmpty { return departmentId }
+            if let resolvedCareerId {
+                let campus = resolvedCareerId.contains("ocana") ? "ocana" : "cucuta"
+                let dept = Career.defaultDepartment(for: resolvedCareerId, faculty: "", campus: campus)
+                return Career.makeDepartmentId(department: dept, campus: campus)
+            }
+            return nil
+        }()
 
         var data: [String: Any] = [
             "profileType": type.rawValue,
             "createdAt": FieldValue.serverTimestamp(),
             "updatedAt": FieldValue.serverTimestamp()
         ]
-        if type == .estudiante, let careerId {
-            data["careerId"] = careerId
+        if let resolvedCareerId {
+            data["careerId"] = resolvedCareerId
+        }
+        if let resolvedDepartmentId {
+            data["departmentId"] = resolvedDepartmentId
         }
 
-        try await db.collection("users").document(userId).setData(data)
-        state = .ready(UserProfile(profileType: type, careerId: type == .estudiante ? careerId : nil))
+        let docRef = db.collection("users").document(uid)
+        do {
+            try await docRef.setData(data)
+        } catch {
+            // Fallback in case deployed Firestore Security Rules only allow the original schema
+            // (profileType, careerId only for estudiante, createdAt, updatedAt).
+            var legacyData: [String: Any] = [
+                "profileType": type.rawValue,
+                "createdAt": FieldValue.serverTimestamp(),
+                "updatedAt": FieldValue.serverTimestamp()
+            ]
+            if type == .estudiante, let resolvedCareerId {
+                legacyData["careerId"] = resolvedCareerId
+            }
+            try await docRef.setData(legacyData)
+        }
+
+        Self.saveLocalMetadata(uid: uid, careerId: resolvedCareerId, departmentId: resolvedDepartmentId)
+
+        state = .ready(
+            UserProfile(
+                profileType: type,
+                careerId: resolvedCareerId,
+                departmentId: resolvedDepartmentId
+            )
+        )
     }
 
     func signOut() {
@@ -119,7 +160,7 @@ final class SessionStore {
         email = user.email
         do {
             let snapshot = try await db.collection("users").document(user.uid).getDocument()
-            if let data = snapshot.data(), let profile = Self.profile(from: data) {
+            if let data = snapshot.data(), let profile = Self.profile(from: data, uid: user.uid) {
                 state = .ready(profile)
             } else {
                 state = .needsProfile
@@ -135,9 +176,34 @@ final class SessionStore {
         email = nil
     }
 
-    private static func profile(from data: [String: Any]) -> UserProfile? {
+    private static func saveLocalMetadata(uid: String, careerId: String?, departmentId: String?) {
+        let defaults = UserDefaults.standard
+        defaults.set(careerId, forKey: "profile.careerId.\(uid)")
+        defaults.set(departmentId, forKey: "profile.departmentId.\(uid)")
+    }
+
+    private static func profile(from data: [String: Any], uid: String) -> UserProfile? {
         guard let raw = data["profileType"] as? String,
               let type = ProfileType(rawValue: raw) else { return nil }
-        return UserProfile(profileType: type, careerId: data["careerId"] as? String)
+
+        let defaults = UserDefaults.standard
+        let careerId = (data["careerId"] as? String) ?? defaults.string(forKey: "profile.careerId.\(uid)")
+        var departmentId = (data["departmentId"] as? String) ?? defaults.string(forKey: "profile.departmentId.\(uid)")
+
+        if departmentId == nil, let careerId {
+            let campus = careerId.contains("ocana") ? "ocana" : "cucuta"
+            let dept = Career.defaultDepartment(for: careerId, faculty: "", campus: campus)
+            departmentId = Career.makeDepartmentId(department: dept, campus: campus)
+        }
+
+        // I1: If an egresado or estudiante account was created before without a program, or a docente without department, prompt to complete profile.
+        if type.requiresProgram && (careerId == nil || careerId?.isEmpty == true) {
+            return nil
+        }
+        if type.requiresDepartment && (departmentId == nil || departmentId?.isEmpty == true) {
+            return nil
+        }
+
+        return UserProfile(profileType: type, careerId: careerId, departmentId: departmentId)
     }
 }

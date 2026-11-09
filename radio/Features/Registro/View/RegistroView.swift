@@ -1,14 +1,5 @@
 // radio/Features/Registro/View/RegistroView.swift
 
-//
-//  RegistroView.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
-// radio/Features/Registro/View/RegistroView.swift
-
 import SwiftUI
 
 struct RegistroView: View {
@@ -34,12 +25,12 @@ struct RegistroView: View {
                     }
                 }
 
-                if viewModel.profileType == .estudiante {
-                    Section("Tu programa académico") {
+                if let profileType = viewModel.profileType, profileType.requiresProgram {
+                    Section(profileType == .egresado ? "Programa del que eres egresado" : "Tu programa académico") {
                         if viewModel.isLoadingCareers {
                             ProgressView()
                         } else if viewModel.careers.isEmpty {
-                            Text("No hay carreras disponibles por ahora.")
+                            Text("No hay programas disponibles por ahora.")
                                 .foregroundStyle(.secondary)
                         } else {
                             NavigationLink {
@@ -48,7 +39,40 @@ struct RegistroView: View {
                                     selectedCareerId: $viewModel.selectedCareerId
                                 )
                             } label: {
-                                LabeledContent("Carrera", value: viewModel.selectedCareer?.name ?? "Selecciona…")
+                                LabeledContent(
+                                    "Programa",
+                                    value: viewModel.selectedCareer?.name ?? "Selecciona…"
+                                )
+                            }
+                            if let career = viewModel.selectedCareer {
+                                LabeledContent("Departamento", value: career.department)
+                                LabeledContent("Facultad", value: career.faculty)
+                            }
+                        }
+                    }
+                }
+
+                if let profileType = viewModel.profileType, profileType.requiresDepartment {
+                    Section("Departamento al que perteneces") {
+                        if viewModel.isLoadingCareers {
+                            ProgressView()
+                        } else if viewModel.departments.isEmpty {
+                            Text("No hay departamentos disponibles por ahora.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            NavigationLink {
+                                DepartmentPickerView(
+                                    departments: viewModel.departments,
+                                    selectedDepartmentId: $viewModel.selectedDepartmentId
+                                )
+                            } label: {
+                                LabeledContent(
+                                    "Departamento",
+                                    value: viewModel.selectedDepartment?.name ?? "Selecciona…"
+                                )
+                            }
+                            if let dept = viewModel.selectedDepartment {
+                                LabeledContent("Facultad", value: dept.faculty)
                             }
                         }
                     }

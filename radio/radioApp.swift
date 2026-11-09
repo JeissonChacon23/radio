@@ -1,20 +1,12 @@
 // radio/radioApp.swift
 
-//
-//  radioApp.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
-// radio/radioApp.swift
-
 import SwiftUI
 import FirebaseCore
 
 @main
 struct radioApp: App {
-    @State private var player = RadioPlayerManager.shared
+    @State private var player = RadioPlayerManager()
+    @State private var podcastPlayer = PodcastPlayerManager()
     @State private var session = SessionStore()
 
     init() {
@@ -26,6 +18,7 @@ struct radioApp: App {
             RootView()
                 .environment(session)
                 .environment(player)
+                .environment(podcastPlayer)
         }
     }
 }

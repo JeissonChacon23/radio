@@ -1,16 +1,21 @@
 // radio/Features/Calendario/View/EventoDetalleView.swift
 
-//
-//  EventoDetalleView.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
 import SwiftUI
+import SafariServices
+
+struct SafariWebView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+}
 
 struct EventoDetalleView: View {
     let evento: Evento
+    @State private var showingSafari = false
 
     var body: some View {
         ScrollView {
@@ -18,16 +23,26 @@ struct EventoDetalleView: View {
                 Text(evento.title)
                     .font(.title2.bold())
 
-                Label(evento.dateRangeText, systemImage: "calendar")
+                Label(evento.dateRangeText, systemImage: "calendar.badge.clock")
                     .foregroundStyle(.secondary)
 
-                if !evento.description.isEmpty {
-                    Text(evento.description)
+                if !evento.specialGuest.isEmpty {
+                    Label("Invitado especial: \(evento.specialGuest)", systemImage: "person.crop.circle.badge.checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.tint)
                 }
 
-                if let link = evento.link {
-                    Link(destination: link) {
-                        Label("Ver fuente", systemImage: "link")
+                if !evento.description.isEmpty {
+                    Divider()
+                    Text(evento.description)
+                        .font(.body)
+                }
+
+                if evento.link != nil {
+                    Button {
+                        showingSafari = true
+                    } label: {
+                        Label("Ver fuente", systemImage: "safari")
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -35,7 +50,13 @@ struct EventoDetalleView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .navigationTitle("Evento")
+        .navigationTitle("Detalle del evento")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingSafari) {
+            if let link = evento.link {
+                SafariWebView(url: link)
+                    .ignoresSafeArea()
+            }
+        }
     }
 }

@@ -1,12 +1,5 @@
 // radio/Features/Programacion/Service/ProgramacionService.swift
 
-//
-//  ProgramacionService.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
 import Foundation
 import FirebaseFirestore
 
@@ -42,7 +35,8 @@ struct ProgramacionService {
             startTime: startTime,
             durationMinutes: data["durationMinutes"] as? Int ?? 60,
             collective: data["collective"] as? String ?? "",
-            hosts: data["hosts"] as? [String] ?? []
+            hosts: data["hosts"] as? [String] ?? [],
+            artworkDriveId: data["artworkDriveId"] as? String ?? ""
         )
     }
 }
