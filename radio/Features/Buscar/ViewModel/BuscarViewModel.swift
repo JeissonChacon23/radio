@@ -19,6 +19,25 @@ final class BuscarViewModel {
     @ObservationIgnored private var catalogKey = ""
     @ObservationIgnored private var catalogLoadedAt = Date.distantPast
 
+    /// I5: Spanish stopwords (normalized without accents) ignored before searching.
+    nonisolated static let stopwords: Set<String> = [
+        "a", "al", "algo", "algun", "alguna", "algunas", "alguno", "algunos", "ante", "antes",
+        "aqui", "asi", "aun", "aunque", "bien", "bueno", "cada", "casi", "como", "con", "contra",
+        "cosa", "cosas", "cual", "cuales", "cuando", "cuanto", "de", "del", "desde", "donde",
+        "dos", "el", "ella", "ellas", "ello", "ellos", "en", "entonces", "entre", "era", "eran",
+        "eres", "es", "esa", "esas", "ese", "eso", "esos", "esta", "estaba", "estaban", "estamos",
+        "estan", "estar", "este", "esto", "estos", "estoy", "fue", "fueron", "fui", "ha", "haber",
+        "habia", "hace", "hacer", "hacia", "han", "hasta", "hay", "he", "hemos", "hoy", "la",
+        "las", "le", "les", "lo", "los", "mas", "me", "mi", "mientras", "mis", "mismo", "muchas",
+        "mucho", "muchos", "muy", "nada", "ni", "no", "nos", "nosotros", "nuestra", "nuestro",
+        "o", "osea", "otra", "otras", "otro", "otros", "para", "pero", "poco", "pues", "por",
+        "porque", "que", "quien", "quienes", "se", "sea", "segun", "ser", "si", "siempre", "sin",
+        "sobre", "solo", "son", "soy", "su", "sus", "tambien", "tan", "tanto", "te", "tener",
+        "tengo", "ti", "tiene", "tienen", "todo", "toda", "todos", "todas", "tu", "tus", "un",
+        "una", "uno", "unos", "unas", "usted", "ustedes", "va", "vamos", "van", "veces", "vez",
+        "voy", "y", "ya", "yo"
+    ]
+
     init() {}
 
     #if DEBUG
@@ -30,7 +49,7 @@ final class BuscarViewModel {
     }
     #endif
 
-    func search(audienceTags: [String]) async {
+    func search(profile: UserProfile?) async {
         let terms = Self.terms(from: query)
         guard !terms.isEmpty else {
             results = SearchResults()
@@ -43,45 +62,41 @@ final class BuscarViewModel {
         defer { isSearching = false }
 
         do {
-            let catalog = try await loadCatalog(audienceTags: audienceTags)
+            let catalog = try await loadCatalog(profile: profile)
 
             let programHits = catalog.programs
                 .compactMap { programa -> ProgramHit? in
-                    let matches = Self.matches(in: [programa.name, programa.collective] + programa.hosts, terms: terms)
+                    let matches = Self.matches(
+                        in: [programa.name, programa.collective] + programa.hosts,
+                        terms: terms
+                    )
                     return matches > 0 ? ProgramHit(programa: programa, matches: matches) : nil
                 }
                 .sorted { ($0.matches, $1.programa.name) > ($1.matches, $0.programa.name) }
 
             let eventHits = catalog.events
                 .compactMap { event -> EventHit? in
-                    let matches = Self.matches(in: [event.title, event.description], terms: terms)
+                    let matches = Self.matches(
+                        in: [event.title, event.description, event.specialGuest],
+                        terms: terms
+                    )
                     return matches > 0 ? EventHit(event: event, matches: matches) : nil
                 }
                 .sorted { ($0.matches, $0.event.date) > ($1.matches, $1.event.date) }
 
-            // The podcast part must not break the rest of the results if it fails.
-            var podcastHits: [String: PodcastHit] = [:]
+            var podcastHits: [PodcastHit] = []
             do {
-                for hit in try await podcastService.episodes(matching: terms) {
-                    podcastHits[hit.episode.id] = PodcastHit(episode: hit.episode, matches: hit.matches)
-                }
-
-                // Episodes of the programs whose name matched also count.
-                let programMatches = Dictionary(uniqueKeysWithValues: programHits.map { ($0.programa.id, $0.matches) })
-                for episode in try await podcastService.episodes(programIds: Array(programMatches.keys)) {
-                    let bonus = programMatches[episode.programId] ?? 0
-                    let previous = podcastHits[episode.id]?.matches ?? 0
-                    podcastHits[episode.id] = PodcastHit(episode: episode, matches: previous + bonus)
-                }
+                podcastHits = try await podcastService.episodes(matching: terms)
+                    .map { PodcastHit(episode: $0.episode, matches: $0.matches) }
+                    .sorted { ($0.matches, $0.episode.airDate) > ($1.matches, $1.episode.airDate) }
             } catch {
-                // If Firestore asks for an index, this message includes the link to create it.
                 print("BuscarViewModel: podcast search failed:", error)
             }
 
             results = SearchResults(
                 programs: programHits,
                 events: eventHits,
-                podcasts: podcastHits.values.sorted { ($0.matches, $0.episode.airDate) > ($1.matches, $1.episode.airDate) }
+                podcasts: podcastHits
             )
             hasSearched = true
         } catch {
@@ -90,35 +105,61 @@ final class BuscarViewModel {
         }
     }
 
-    /// Programs and events are loaded once and reused for a few minutes.
-    private func loadCatalog(audienceTags: [String]) async throws -> SearchCatalog {
-        let key = audienceTags.joined(separator: ",")
-        if let catalog, key == catalogKey, Date().timeIntervalSince(catalogLoadedAt) < 300 {
+    private func loadCatalog(profile: UserProfile?) async throws -> SearchCatalog {
+        let key = profile?.audienceTags.joined(separator: ",") ?? "invitado"
+        if let catalog, key == catalogKey, Date().timeIntervalSince(catalogLoadedAt) < 120 {
             return catalog
         }
-        let fresh = try await service.loadCatalog(audienceTags: audienceTags)
+        let fresh = try await service.loadCatalog(profile: profile)
         catalog = fresh
         catalogKey = key
         catalogLoadedAt = .now
         return fresh
     }
 
-    private nonisolated static func matches(in texts: [String], terms: [String]) -> Int {
-        let haystack = texts
+    /// I6 & I7: Tokenizes haystack without accents and checks that ALL meaningful terms match
+    /// as whole words or word prefixes (4+ chars), preventing unrelated partial matches.
+    nonisolated static func matches(in texts: [String], terms: [String]) -> Int {
+        guard !terms.isEmpty else { return 0 }
+        let folded = texts
             .joined(separator: " ")
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
-        return terms.filter { haystack.contains($0) }.count
+            .lowercased()
+        let tokens = folded
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        guard !tokens.isEmpty else { return 0 }
+
+        var matchedTerms = 0
+        var totalOccurrences = 0
+
+        for term in terms {
+            let hits = tokens.filter { token in
+                if token == term { return true }
+                if term.count >= 4 && token.hasPrefix(term) { return true }
+                return false
+            }.count
+            if hits > 0 {
+                matchedTerms += 1
+                totalOccurrences += hits
+            }
+        }
+
+        // Require all searched terms to be present in the item to avoid unrelated noise (I7).
+        guard matchedTerms == terms.count else { return 0 }
+        return totalOccurrences
     }
 
-    /// Same normalization as the transcriber: lowercase, no accents, words of 3+ letters.
-    /// Firestore accepts at most 30 values in arrayContainsAny.
+    /// I5: Lowercase, no accents, removes Spanish stopwords.
     nonisolated static func terms(from text: String) -> [String] {
-        let folded = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+        let folded = text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            .lowercased()
         let words = folded
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count >= 3 }
+            .filter { $0.count >= 2 && !stopwords.contains($0) }
 
         var seen = Set<String>()
-        return Array(words.filter { seen.insert($0).inserted }.prefix(30))
+        return Array(words.filter { seen.insert($0).inserted }.prefix(20))
     }
 }

@@ -1,14 +1,5 @@
 // radio/Features/Cuenta/View/CuentaView.swift
 
-//
-//  CuentaView.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
-// radio/Features/Cuenta/View/CuentaView.swift
-
 import SwiftUI
 
 struct CuentaView: View {
@@ -25,14 +16,19 @@ struct CuentaView: View {
                     Section("Perfil") {
                         LabeledContent("Vínculo", value: profile.profileType.title)
                         if let careerId = profile.careerId {
-                            LabeledContent("Carrera (id)", value: careerId)
+                            LabeledContent("Programa", value: careerId)
                         }
-                        LabeledContent("Etiquetas del calendario", value: profile.audienceTags.joined(separator: ", "))
+                        if let departmentId = profile.departmentId {
+                            LabeledContent("Departamento", value: departmentId.replacingOccurrences(of: "dept:", with: ""))
+                        }
+                        Button("Actualizar vínculo o programa") {
+                            session.editProfile()
+                        }
                     }
                 }
 
                 Section {
-                    Button("Cerrar sesión") { session.signOut() }
+                    Button("Cerrar sesión", role: .destructive) { session.signOut() }
                 }
             }
             .navigationTitle("Mi cuenta")

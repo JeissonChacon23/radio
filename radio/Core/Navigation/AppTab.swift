@@ -4,7 +4,6 @@ import SwiftUI
 
 enum AppTab: String, Hashable, CaseIterable, Identifiable {
     case inicio
-    case programacion
     case calendario
     case podcast
     case buscar
@@ -14,7 +13,6 @@ enum AppTab: String, Hashable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .inicio: "Inicio"
-        case .programacion: "Programación"
         case .calendario: "Calendario"
         case .podcast: "Podcast"
         case .buscar: "Buscar"
@@ -24,7 +22,6 @@ enum AppTab: String, Hashable, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .inicio: "house.fill"
-        case .programacion: "radio"
         case .calendario: "calendar"
         case .podcast: "headphones"
         case .buscar: "magnifyingglass"

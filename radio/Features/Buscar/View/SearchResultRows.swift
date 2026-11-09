@@ -41,6 +41,11 @@ struct EventHitRow: View {
             Label(event.dateRangeText, systemImage: "calendar")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if !event.specialGuest.isEmpty {
+                Label("Invitado: \(event.specialGuest)", systemImage: "person.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.tint)
+            }
             if !event.description.isEmpty {
                 Text(event.description)
                     .font(.footnote)
@@ -54,6 +59,7 @@ struct EventHitRow: View {
 
 struct EventHitDetailView: View {
     let event: EventItem
+    @State private var showingSafari = false
 
     var body: some View {
         ScrollView {
@@ -61,16 +67,25 @@ struct EventHitDetailView: View {
                 Text(event.title)
                     .font(.title2.bold())
 
-                Label(event.dateRangeText, systemImage: "calendar")
+                Label(event.dateRangeText, systemImage: "calendar.badge.clock")
                     .foregroundStyle(.secondary)
 
+                if !event.specialGuest.isEmpty {
+                    Label("Invitado especial: \(event.specialGuest)", systemImage: "person.crop.circle.badge.checkmark")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.tint)
+                }
+
                 if !event.description.isEmpty {
+                    Divider()
                     Text(event.description)
                 }
 
-                if let link = event.link {
-                    Link(destination: link) {
-                        Label("Ver fuente", systemImage: "link")
+                if event.link != nil {
+                    Button {
+                        showingSafari = true
+                    } label: {
+                        Label("Ver fuente", systemImage: "safari")
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -78,43 +93,13 @@ struct EventHitDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
         }
-        .navigationTitle("Evento")
+        .navigationTitle("Detalle del evento")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-#Preview("Programa") {
-    List {
-        ProgramHitRow(
-            programa: Programa(
-                id: "1", name: "Mañanas UFPS", days: [1, 2, 3, 4, 5], startTime: "07:00",
-                durationMinutes: 120, collective: "Colectivo Radio", hosts: ["Ana", "Luis"],
-                artworkDriveId: ""
-            )
-        )
-    }
-}
-
-#Preview("Evento") {
-    List {
-        EventHitRow(
-            event: EventItem(
-                id: "1", title: "Feria de emprendimiento",
-                description: "Encuentro con proyectos de estudiantes y egresados.",
-                date: .now, endDate: nil, link: nil
-            )
-        )
-    }
-}
-
-#Preview("Detalle del evento") {
-    NavigationStack {
-        EventHitDetailView(
-            event: EventItem(
-                id: "1", title: "Feria de emprendimiento",
-                description: "Encuentro con proyectos de estudiantes y egresados.",
-                date: .now, endDate: nil, link: URL(string: "https://ufps.edu.co")
-            )
-        )
+        .sheet(isPresented: $showingSafari) {
+            if let link = event.link {
+                SafariWebView(url: link)
+                    .ignoresSafeArea()
+            }
+        }
     }
 }

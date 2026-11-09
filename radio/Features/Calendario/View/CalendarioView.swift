@@ -1,14 +1,5 @@
 // radio/Features/Calendario/View/CalendarioView.swift
 
-//
-//  CalendarioView.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
-// CalendarioView.swift
-
 import SwiftUI
 
 struct CalendarioView: View {
@@ -36,8 +27,8 @@ struct CalendarioView: View {
             }
         }
         .onAppear {
-            if let tags = session.profile?.audienceTags {
-                viewModel.start(audienceTags: tags)
+            if let profile = session.profile {
+                viewModel.start(profile: profile)
             }
         }
         .onDisappear { viewModel.stop() }
@@ -68,6 +59,7 @@ struct CalendarioView: View {
                             NavigationLink(value: evento) {
                                 HStack {
                                     EventoRow(evento: evento)
+                                    Spacer(minLength: 0)
                                     Image(systemName: "chevron.right")
                                         .font(.footnote.weight(.semibold))
                                         .foregroundStyle(.tertiary)

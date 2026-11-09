@@ -3,7 +3,6 @@
 import Foundation
 import FirebaseFirestore
 
-/// The programs and the events (only those for the user's profile) that can be searched.
 struct SearchCatalog {
     let programs: [Programa]
     let events: [EventItem]
@@ -12,15 +11,20 @@ struct SearchCatalog {
 struct BuscarService {
     private var db: Firestore { Firestore.firestore() }
 
-    func loadCatalog(audienceTags: [String]) async throws -> SearchCatalog {
+    func loadCatalog(profile: UserProfile?) async throws -> SearchCatalog {
         let programsSnapshot = try await db.collection("programs").getDocuments()
         let programs = programsSnapshot.documents.compactMap { Self.programa(from: $0) }
 
-        let tags = Array((audienceTags.isEmpty ? ["todos"] : audienceTags).prefix(30))
+        let effectiveProfile = profile ?? UserProfile(profileType: .invitado, careerId: nil)
+        let tags = Array(effectiveProfile.audienceTags.prefix(30))
         let eventsSnapshot = try await db.collection("events")
             .whereField("audience", arrayContainsAny: tags)
             .getDocuments()
-        let events = eventsSnapshot.documents.compactMap { Self.event(from: $0) }
+        let events = eventsSnapshot.documents.compactMap { doc -> EventItem? in
+            let audience = doc.data()["audience"] as? [String] ?? []
+            guard effectiveProfile.matches(eventAudience: audience) else { return nil }
+            return Self.event(from: doc)
+        }
 
         return SearchCatalog(programs: programs, events: events)
     }
@@ -50,10 +54,17 @@ struct BuscarService {
               let date = (data["date"] as? Timestamp)?.dateValue() else { return nil }
 
         let linkText = (data["link"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let specialGuest = (data["specialGuest"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let startTime = (data["startTime"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let endTime = (data["endTime"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+
         return EventItem(
             id: doc.documentID,
             title: title,
             description: data["description"] as? String ?? data["summary"] as? String ?? "",
+            specialGuest: specialGuest,
+            startTime: startTime,
+            endTime: endTime,
             date: date,
             endDate: (data["endDate"] as? Timestamp)?.dateValue(),
             link: linkText.isEmpty ? nil : URL(string: linkText)

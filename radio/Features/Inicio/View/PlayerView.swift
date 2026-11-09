@@ -22,8 +22,15 @@ struct PlayerView: View {
             }
             .frame(width: 64, height: 64)
             .foregroundStyle(.white)
-            .background(Color.accentColor, in: Circle())
-            .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+            .background(
+                LinearGradient(
+                    colors: [Color.ufpsRed, Color.ufpsCrimson],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: Circle()
+            )
+            .shadow(color: Color.ufpsRed.opacity(0.38), radius: 10, y: 5)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(player.isPlaying ? "Pausar" : "Reproducir")

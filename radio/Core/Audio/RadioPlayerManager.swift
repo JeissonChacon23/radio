@@ -364,6 +364,8 @@ final class RadioPlayerManager {
         ]
         if let nowPlayingArtwork {
             info[MPMediaItemPropertyArtwork] = nowPlayingArtwork
+        } else if let fallback = UIImage(named: "logo") {
+            info[MPMediaItemPropertyArtwork] = Self.makeArtwork(from: fallback)
         }
         center.nowPlayingInfo = info
     }

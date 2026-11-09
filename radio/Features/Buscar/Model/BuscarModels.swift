@@ -6,16 +6,50 @@ struct EventItem: Identifiable, Hashable {
     let id: String
     let title: String
     let description: String
+    let specialGuest: String
+    let startTime: String
+    let endTime: String
     let date: Date
     let endDate: Date?
     let link: URL?
+
+    init(
+        id: String,
+        title: String,
+        description: String,
+        specialGuest: String = "",
+        startTime: String = "",
+        endTime: String = "",
+        date: Date,
+        endDate: Date?,
+        link: URL?
+    ) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.specialGuest = specialGuest
+        self.startTime = startTime
+        self.endTime = endTime
+        self.date = date
+        self.endDate = endDate
+        self.link = link
+    }
 }
 
 extension EventItem {
     var dateRangeText: String {
-        let start = date.formatted(date: .long, time: .omitted)
-        guard let endDate, !Calendar.current.isDate(endDate, inSameDayAs: date) else { return start }
-        return "\(start) – \(endDate.formatted(date: .long, time: .omitted))"
+        Evento(
+            id: id,
+            title: title,
+            description: description,
+            specialGuest: specialGuest,
+            startTime: startTime,
+            endTime: endTime,
+            link: link,
+            audience: [],
+            date: date,
+            endDate: endDate
+        ).dateRangeText
     }
 }
 
@@ -49,7 +83,7 @@ struct PodcastResult: Identifiable, Hashable {
     let id: String
     let programName: String
     let airDate: Date
-    let imageId: String?   // the episode image, or the program image when the episode has none
+    let imageId: String?
     let audioId: String?
-    let matches: Int       // how many of the searched words the episode contains
+    let matches: Int
 }

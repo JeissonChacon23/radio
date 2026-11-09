@@ -19,20 +19,18 @@ struct DriveArtworkView: View {
                         .scaledToFill()
                 } else {
                     ZStack {
-                        LinearGradient(
-                            colors: [.red.opacity(0.85), .orange],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        Image(systemName: "dot.radiowaves.left.and.right")
+                        Color.white
+                        Image("logo")
                             .resizable()
                             .scaledToFit()
-                            .padding(pixelSize > 512 ? 64 : 14)
-                            .foregroundStyle(.white.opacity(0.9))
                     }
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            }
             .task(id: id) {
                 image = nil
                 guard let id, !RuntimeEnvironment.isPreview else { return }

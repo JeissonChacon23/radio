@@ -1,6 +1,5 @@
 // radio/Features/Calendario/ViewModel/CalendarioViewModel.swift
 
-
 import Foundation
 import Observation
 import FirebaseFirestore
@@ -18,21 +17,21 @@ final class CalendarioViewModel {
 
     private let service = CalendarioService()
     private var listener: ListenerRegistration?
-    private var currentTags: [String] = []
+    private var currentProfile: UserProfile?
 
     private var calendar: Calendar { .current }
 
     // MARK: - Escucha de Firestore
 
-    func start(audienceTags: [String]) {
-        guard listener == nil || audienceTags != currentTags else { return }
+    func start(profile: UserProfile) {
+        guard listener == nil || profile != currentProfile else { return }
         stop()
-        currentTags = audienceTags
+        currentProfile = profile
         errorMessage = nil
         if eventos.isEmpty { isLoading = true }
 
         listener = service.observeEventos(
-            audienceTags: audienceTags,
+            profile: profile,
             onChange: { [weak self] eventos in
                 self?.apply(eventos)
             },

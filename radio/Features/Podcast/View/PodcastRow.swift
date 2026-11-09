@@ -22,9 +22,15 @@ struct PodcastRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(episode.programName)
                     .font(.headline)
-                Text(episode.airDate.formatted(date: .long, time: .omitted))
+                Text(episode.dateAndTimeText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if !episode.hosts.isEmpty {
+                    Text("Locutores: \(episode.hosts.joined(separator: ", "))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 0)
@@ -42,7 +48,7 @@ struct PodcastRow: View {
     List {
         PodcastRow(
             episode: PodcastEpisode(id: "1", programId: "p1", programName: "Artistas UFPS Radio",
-                                    airDate: .now, imageId: nil, audioId: "x")
+                                    airDate: .now, airTime: "10:00", hosts: ["Ana", "Luis"], imageId: nil, audioId: "x")
         )
     }
     .environment(PodcastPlayerManager())

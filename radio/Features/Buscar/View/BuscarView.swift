@@ -23,7 +23,7 @@ struct BuscarView: View {
                 .searchable(text: $viewModel.query, prompt: "Programas, eventos y podcasts")
                 .onSubmit(of: .search) {
                     Task {
-                        await viewModel.search(audienceTags: session.profile?.audienceTags ?? ["todos"])
+                        await viewModel.search(profile: session.profile)
                     }
                 }
                 .safeAreaInset(edge: .bottom) { PodcastPlayerBar() }
@@ -44,7 +44,7 @@ struct BuscarView: View {
             ContentUnavailableView(
                 "Busca en toda la app",
                 systemImage: "magnifyingglass",
-                description: Text("Escribe una o varias palabras y pulsa Buscar. Por ejemplo: tecnología, universidad, música.")
+                description: Text("Escribe una palabra o frase y pulsa Buscar. Se busca en programas, eventos y en las transcripciones de los podcasts.")
             )
         } else if viewModel.results.isEmpty {
             ContentUnavailableView.search(text: viewModel.query)
@@ -89,44 +89,4 @@ struct BuscarView: View {
     BuscarView()
         .environment(SessionStore(previewState: .ready(UserProfile(profileType: .invitado, careerId: nil))))
         .environment(PodcastPlayerManager())
-}
-
-#Preview("Con resultados") {
-    BuscarView(
-        viewModel: BuscarViewModel(
-            previewResults: SearchResults(
-                programs: [
-                    ProgramHit(
-                        programa: Programa(
-                            id: "1", name: "Mañanas UFPS", days: [1, 2, 3, 4, 5], startTime: "07:00",
-                            durationMinutes: 120, collective: "Colectivo Radio", hosts: ["Ana"],
-                            artworkDriveId: ""
-                        ),
-                        matches: 1
-                    )
-                ],
-                events: [
-                    EventHit(
-                        event: EventItem(
-                            id: "1", title: "Feria de emprendimiento",
-                            description: "Encuentro con proyectos de estudiantes y egresados.",
-                            date: .now, endDate: nil, link: nil
-                        ),
-                        matches: 1
-                    )
-                ],
-                podcasts: [
-                    PodcastHit(
-                        episode: PodcastEpisode(
-                            id: "1", programId: "1", programName: "Artistas UFPS Radio",
-                            airDate: .now, imageId: nil, audioId: "x"
-                        ),
-                        matches: 2
-                    )
-                ]
-            )
-        )
-    )
-    .environment(SessionStore(previewState: .ready(UserProfile(profileType: .invitado, careerId: nil))))
-    .environment(PodcastPlayerManager())
 }

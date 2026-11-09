@@ -4,17 +4,27 @@ import SwiftUI
 
 struct MainTabView: View {
     @State private var selection: AppTab = .inicio
+    @State private var inicioScrollTrigger: Int = 0
+
+    private var selectionBinding: Binding<AppTab> {
+        Binding(
+            get: { selection },
+            set: { newTab in
+                if newTab == .inicio {
+                    inicioScrollTrigger &+= 1
+                }
+                selection = newTab
+            }
+        )
+    }
 
     var body: some View {
-        TabView(selection: $selection) {
+        TabView(selection: selectionBinding) {
             Tab(AppTab.inicio.title, systemImage: AppTab.inicio.systemImage, value: AppTab.inicio) {
-                InicioView()
+                InicioView(scrollTrigger: inicioScrollTrigger)
             }
             Tab(AppTab.calendario.title, systemImage: AppTab.calendario.systemImage, value: AppTab.calendario) {
                 CalendarioView()
-            }
-            Tab(AppTab.programacion.title, systemImage: AppTab.programacion.systemImage, value: AppTab.programacion) {
-                ScheduleView()
             }
             Tab(AppTab.podcast.title, systemImage: AppTab.podcast.systemImage, value: AppTab.podcast) {
                 PodcastView()
@@ -25,6 +35,7 @@ struct MainTabView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .tint(Color.ufpsRed)
     }
 }
 

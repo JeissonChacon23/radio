@@ -1,10 +1,3 @@
-//
-//  PodcastPlayerBar.swift
-//  radio
-//
-//  Created by Foster Chacon on 30/10/26.
-//
-
 // radio/Features/Podcast/View/PodcastPlayerBar.swift
 
 import SwiftUI
@@ -32,10 +25,10 @@ struct PodcastPlayerBar: View {
                         Text(episode.programName)
                             .font(.subheadline.bold())
                             .lineLimit(1)
-                        Text(failureMessage ?? episode.airDate.formatted(date: .long, time: .omitted))
+                        Text(failureMessage ?? episode.dateAndTimeText)
                             .font(.caption)
-                            .foregroundStyle(failureMessage == nil ? Color.secondary : Color.red)
-                            .lineLimit(3)
+                            .foregroundStyle(failureMessage == nil ? Color.secondary : Color.ufpsRed)
+                            .lineLimit(2)
                     }
 
                     Spacer(minLength: 0)
@@ -46,8 +39,10 @@ struct PodcastPlayerBar: View {
                     Button { player.togglePlayPause() } label: {
                         if player.isLoading {
                             ProgressView()
+                                .tint(Color.ufpsRed)
                         } else {
                             Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                                .foregroundStyle(Color.ufpsRed)
                         }
                     }
                     .frame(width: 28)
@@ -73,6 +68,7 @@ struct PodcastPlayerBar: View {
                     isScrubbing = editing
                     if !editing { player.seek(to: scrubTime) }
                 }
+                .tint(Color.ufpsRed)
                 .disabled(player.duration <= 0)
 
                 HStack {
@@ -85,6 +81,10 @@ struct PodcastPlayerBar: View {
             }
             .padding(12)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.ufpsRed.opacity(0.18), lineWidth: 1)
+            )
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
         }
@@ -110,7 +110,7 @@ struct PodcastPlayerBar: View {
     .environment(
         PodcastPlayerManager(
             previewEpisode: PodcastEpisode(id: "1", programId: "p1", programName: "Artistas UFPS Radio",
-                                           airDate: .now, imageId: nil, audioId: "x"),
+                                           airDate: .now, airTime: "10:00", hosts: ["Ana"], imageId: nil, audioId: "x"),
             status: .playing
         )
     )
