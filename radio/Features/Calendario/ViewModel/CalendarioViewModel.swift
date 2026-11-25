@@ -7,17 +7,20 @@ import FirebaseFirestore
 @MainActor
 @Observable
 final class CalendarioViewModel {
+    private static let starredStorageKey = "calendar.starredEventIds"
+
     private(set) var eventos: [Evento] = []
     private(set) var eventDays: Set<Date> = []
+    private(set) var starredIds: Set<String> = CalendarioViewModel.loadStarredIds()
     private(set) var isLoading = true
     private(set) var errorMessage: String?
 
     var selectedDate: Date = Calendar.current.startOfDay(for: .now)
     private(set) var displayedMonth: Date = CalendarioViewModel.startOfMonth(for: .now)
 
-    private let service = CalendarioService()
-    private var listener: ListenerRegistration?
-    private var currentProfile: UserProfile?
+    @ObservationIgnored private let service = CalendarioService()
+    @ObservationIgnored private var listener: ListenerRegistration?
+    @ObservationIgnored private var currentProfile: UserProfile?
 
     private var calendar: Calendar { .current }
 
@@ -90,6 +93,35 @@ final class CalendarioViewModel {
     }
 
     var selectedEventos: [Evento] { eventos(on: selectedDate) }
+
+    /// Eventos que el usuario ha marcado como destacados, ordenados por fecha.
+    var starredEventos: [Evento] {
+        eventos.filter { starredIds.contains($0.id) }
+    }
+
+    func isStarred(_ evento: Evento) -> Bool {
+        starredIds.contains(evento.id)
+    }
+
+    func toggleStar(_ evento: Evento) {
+        if starredIds.contains(evento.id) {
+            starredIds.remove(evento.id)
+        } else {
+            starredIds.insert(evento.id)
+        }
+        UserDefaults.standard.set(Array(starredIds), forKey: Self.starredStorageKey)
+    }
+
+    func jumpTo(_ evento: Evento) {
+        let day = calendar.startOfDay(for: evento.date)
+        selectedDate = day
+        displayedMonth = Self.startOfMonth(for: day)
+    }
+
+    private static func loadStarredIds() -> Set<String> {
+        let array = UserDefaults.standard.stringArray(forKey: starredStorageKey) ?? []
+        return Set(array)
+    }
 
     // MARK: - Navegación del calendario
 

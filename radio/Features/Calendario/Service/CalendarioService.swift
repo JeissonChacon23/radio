@@ -29,7 +29,8 @@ struct CalendarioService {
 
     private nonisolated static func evento(from doc: QueryDocumentSnapshot) -> Evento? {
         let data = doc.data()
-        guard let title = data["title"] as? String,
+        guard (data["active"] as? Bool) ?? true,
+              let title = data["title"] as? String,
               let date = (data["date"] as? Timestamp)?.dateValue() else { return nil }
 
         let linkText = (data["link"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""

@@ -12,6 +12,7 @@ struct CareerPickerView: View {
     private var filtered: [Career] {
         guard !searchText.isEmpty else { return careers }
         return careers.filter {
+            $0.code.localizedStandardContains(searchText) ||
             $0.name.localizedStandardContains(searchText) ||
             $0.department.localizedStandardContains(searchText) ||
             $0.faculty.localizedStandardContains(searchText)
@@ -40,22 +41,37 @@ struct CareerPickerView: View {
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(career.name).foregroundStyle(.primary)
+                                    HStack(spacing: 6) {
+                                        if !career.code.isEmpty {
+                                            Text(career.code)
+                                                .font(.caption2.bold().monospacedDigit())
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color.ufpsRed.opacity(0.14), in: Capsule())
+                                                .foregroundStyle(Color.ufpsRed)
+                                        }
+                                        Text(career.name).foregroundStyle(.primary)
+                                    }
                                     Text(career.level == "posgrado" ? "Posgrado · \(career.department)" : career.department)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 if selectedCareerId == career.id {
-                                    Image(systemName: "checkmark").foregroundStyle(.tint)
+                                    Image(systemName: "checkmark")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.primary)
                                 }
                             }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.primary)
                     }
                 }
             }
         }
-        .searchable(text: $searchText, prompt: "Buscar programa, departamento o facultad")
+        .searchable(text: $searchText, prompt: "Buscar por código (ej. 115), programa o facultad")
         .navigationTitle("Programa académico")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -104,10 +120,15 @@ struct DepartmentPickerView: View {
                                 }
                                 Spacer()
                                 if selectedDepartmentId == dept.id {
-                                    Image(systemName: "checkmark").foregroundStyle(.tint)
+                                    Image(systemName: "checkmark")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.primary)
                                 }
                             }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.primary)
                     }
                 }
             }
@@ -115,19 +136,5 @@ struct DepartmentPickerView: View {
         .searchable(text: $searchText, prompt: "Buscar departamento o facultad")
         .navigationTitle("Departamento")
         .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-#Preview {
-    NavigationStack {
-        CareerPickerView(
-            careers: [
-                Career(id: "ingenieria-sistemas", name: "Ingeniería de Sistemas",
-                       faculty: "Facultad de Ingeniería", campus: "cucuta", modality: "presencial"),
-                Career(id: "derecho", name: "Derecho",
-                       faculty: "Facultad de Educación, Artes y Humanidades", campus: "cucuta", modality: "presencial")
-            ],
-            selectedCareerId: Binding<String?>.constant("ingenieria-sistemas")
-        )
     }
 }

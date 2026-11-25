@@ -1,16 +1,21 @@
 // radio/Features/Inicio/View/InicioView.swift
 
 import SwiftUI
+import FirebaseFirestore
+import MessageUI
 
 struct InicioView: View {
     private static let topAnchorId = "schedule-top-anchor"
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     @Environment(SessionStore.self) private var session
     @Environment(RadioPlayerManager.self) private var player
     @State private var onAir: OnAirViewModel
     @State private var showAllPast = false
     @State private var lastExpandDate: Date = .distantPast
+    @State private var showingInviteSheet = false
+    @State private var cuentaDestination: CuentaDestination?
 
     private let scrollTrigger: Int
 
@@ -108,14 +113,11 @@ struct InicioView: View {
                         resetToInitialPosition(proxy: proxy, animated: true)
                     }
                 }
-                // Play button: bottom-left, just above the tab bar, with the listeners below it.
+                // Play button: bottom-left, just above the tab bar.
                 .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        PlayerView()
-                        ListenersLabel(count: player.listenersCount)
-                    }
-                    .padding(.leading, 28)
-                    .padding(.bottom, 16)
+                    PlayerView()
+                        .padding(.leading, 28)
+                        .padding(.bottom, 16)
                 }
                 .task(id: nowPlayingKey(programa)) {
                     guard !RuntimeEnvironment.isPreview else { return }
@@ -124,23 +126,102 @@ struct InicioView: View {
             }
             .navigationTitle("Programación")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingInviteSheet = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text("\(player.listenersCount ?? 0)")
+                                .font(.subheadline.weight(.bold))
+                                .monospacedDigit()
+                                .contentTransition(.numericText())
+                            Image(systemName: "wave.3.forward")
+                        }
+                        .foregroundStyle(Color.ufpsRed)
+                        .animation(.default, value: player.listenersCount)
+                    }
+                    .accessibilityLabel("\(player.listenersCount ?? 0) personas escuchando en la app")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        openSocial(
+                            appURL: nil,
+                            webURL: "https://www.facebook.com/UFPSRadio"
+                        )
+                    } label: {
+                        FacebookMonoIcon()
+                            .frame(width: 19, height: 19)
+                    }
+                    .accessibilityLabel("Abrir Facebook de UFPS Radio")
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        openSocial(
+                            appURL: "instagram://user?username=ufpsradio",
+                            webURL: "https://www.instagram.com/ufpsradio/"
+                        )
+                    } label: {
+                        InstagramMonoIcon()
+                            .frame(width: 19, height: 19)
+                    }
+                    .accessibilityLabel("Abrir Instagram de UFPS Radio")
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        if let email = session.email {
-                            Text(email)
+                        if let shortName = session.profile?.shortName, !shortName.isEmpty {
+                            Section {
+                                Text(shortName)
+                            }
                         }
-                        Button("Cerrar sesión") {
-                            Task {
-                                await player.leavePresence() // needs the signed-in user
-                                AudioFocus.stopAll() // the radio and the podcast must not keep playing
-                                session.signOut()
+
+                        Section {
+                            Button {
+                                cuentaDestination = .perfil
+                            } label: {
+                                Label("Perfil", systemImage: "person.crop.circle")
+                            }
+
+                            Button {
+                                cuentaDestination = .apariencia
+                            } label: {
+                                Label("Apariencia", systemImage: "circle.lefthalf.filled")
+                            }
+
+                            Button {
+                                cuentaDestination = .seguridad
+                            } label: {
+                                Label("Cambiar contraseña", systemImage: "key.fill")
+                            }
+                        }
+
+                        Section {
+                            Button(role: .destructive) {
+                                Task {
+                                    await player.leavePresence() // needs the signed-in user
+                                    AudioFocus.stopAll() // the radio and the podcast must not keep playing
+                                    session.signOut()
+                                }
+                            } label: {
+                                Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
                             }
                         }
                     } label: {
-                        Image(systemName: "person.crop.circle")
+                        Image(systemName: "gearshape")
                             .foregroundStyle(Color.ufpsRed)
                     }
                 }
+            }
+            .sheet(isPresented: $showingInviteSheet) {
+                InvitarAudienciaSheet(listenersCount: player.listenersCount ?? 0)
+            }
+            .sheet(item: $cuentaDestination) { destination in
+                CuentaDestinationSheet(destination: destination)
             }
         }
         .task {
@@ -183,7 +264,7 @@ struct InicioView: View {
             )
 
             DriveArtworkView(id: programa?.artworkId)
-                .frame(maxWidth: 280)
+                .frame(maxWidth: 340)
                 .scaleEffect(player.isPlaying ? 1.0 : 0.88)
                 .shadow(
                     color: Color.ufpsCrimson.opacity(player.isPlaying ? 0.28 : 0.14),
@@ -260,6 +341,88 @@ struct InicioView: View {
 
     private func nowPlayingKey(_ programa: Programa?) -> String {
         "\(programa?.id ?? "-")|\(programa?.name ?? "")|\(programa?.artworkDriveId ?? "")"
+    }
+
+    private func openSocial(appURL: String?, webURL: String) {
+        if let appURL, let deepLink = URL(string: appURL) {
+            UIApplication.shared.open(deepLink, options: [:]) { opened in
+                if !opened, let fallback = URL(string: webURL) {
+                    openURL(fallback)
+                }
+            }
+        } else if let url = URL(string: webURL) {
+            openURL(url)
+        }
+    }
+}
+
+
+// MARK: - Íconos monocromáticos de redes sociales (adaptativos a modo claro y oscuro)
+
+private struct InstagramMonoIcon: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(Color.primary, lineWidth: 1.75)
+
+            Circle()
+                .stroke(Color.primary, lineWidth: 1.75)
+                .frame(width: 8.5, height: 8.5)
+
+            Circle()
+                .fill(Color.primary)
+                .frame(width: 2.3, height: 2.3)
+                .offset(x: 4.8, y: -4.8)
+        }
+        .padding(0.5)
+    }
+}
+
+private struct FacebookMonoIcon: View {
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(Color.primary, lineWidth: 1.75)
+
+            FacebookFShape()
+                .fill(Color.primary)
+                .frame(width: 8.5, height: 13.5)
+                .padding(.trailing, 2.5)
+                .padding(.bottom, 0.5)
+        }
+        .padding(0.5)
+    }
+}
+
+private struct FacebookFShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width
+        let h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: w * 0.62, y: h))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.54))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.54))
+        p.addLine(to: CGPoint(x: w * 0.94, y: h * 0.34))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.34))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.24))
+        p.addQuadCurve(
+            to: CGPoint(x: w * 0.78, y: h * 0.14),
+            control: CGPoint(x: w * 0.62, y: h * 0.14)
+        )
+        p.addLine(to: CGPoint(x: w * 0.96, y: h * 0.14))
+        p.addLine(to: CGPoint(x: w * 0.96, y: 0))
+        p.addLine(to: CGPoint(x: w * 0.70, y: 0))
+        p.addQuadCurve(
+            to: CGPoint(x: w * 0.34, y: h * 0.25),
+            control: CGPoint(x: w * 0.34, y: 0)
+        )
+        p.addLine(to: CGPoint(x: w * 0.34, y: h * 0.34))
+        p.addLine(to: CGPoint(x: w * 0.08, y: h * 0.34))
+        p.addLine(to: CGPoint(x: w * 0.08, y: h * 0.54))
+        p.addLine(to: CGPoint(x: w * 0.34, y: h * 0.54))
+        p.addLine(to: CGPoint(x: w * 0.34, y: h))
+        p.closeSubpath()
+        return p
     }
 }
 
@@ -378,33 +541,328 @@ private struct ScheduleProgramCard: View {
     }
 }
 
-/// Shows nothing while there are no listeners or the count is not known yet.
+/// RF05 / HU-03: Muestra en tiempo real cuántos usuarios de la app están escuchando (sin contar web ni FM).
 private struct ListenersLabel: View {
     let count: Int?
 
     var body: some View {
-        if let count, count > 0 {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(Color.ufpsRed)
-                    .frame(width: 7, height: 7)
-                    .modifier(GentleBlinkModifier())
-                Text("\(count) En Línea")
-            }
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(Color.ufpsRed)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Color(.systemBackground))
-                    .shadow(color: Color.black.opacity(0.12), radius: 8, y: 3)
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(Color.ufpsRed.opacity(0.22), lineWidth: 1)
-            )
+        HStack(spacing: 6) {
+            Circle()
+                .fill((count ?? 0) > 0 ? Color.ufpsRed : Color.secondary.opacity(0.5))
+                .frame(width: 7, height: 7)
+                .modifier(GentleBlinkModifier())
+            Text("\(count ?? 0) En Línea")
+            Image(systemName: "chevron.right")
+                .font(.caption2.bold())
         }
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(Color.ufpsRed)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.12), radius: 8, y: 3)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.ufpsRed.opacity(0.22), lineWidth: 1)
+        )
+        .contentTransition(.numericText())
+        .animation(.default, value: count)
+    }
+}
+
+
+// MARK: - Popup para invitar a aumentar la audiencia de UFPS Radio
+
+private struct InvitarAudienciaSheet: View {
+    @Environment(\.openURL) private var openURL
+
+    let listenersCount: Int
+
+    @State private var showingMessageComposer = false
+    @State private var showingMailComposer = false
+    @State private var showingActivityShare = false
+
+    private let shareMessage = "¡Estoy escuchando UFPS Radio 95.2 FM en vivo! 📻✨ Sintoniza la emisora cultural de la Universidad Francisco de Paula Santander y acompáñanos: https://radio.ufps.edu.co/radiocontenido/colectivos_radiales"
+    private let mailSubject = "Escucha UFPS Radio 95.2 FM en vivo"
+
+    private var stationLogoImage: UIImage? {
+        UIImage(named: "logo")
+    }
+
+    private var shareItems: [Any] {
+        if let logo = stationLogoImage {
+            return [logo, shareMessage]
+        }
+        return [shareMessage]
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(Color.ufpsRed.opacity(0.12))
+                        .frame(width: 58, height: 58)
+
+                    HStack(spacing: 4) {
+                        Text("\(listenersCount)")
+                            .font(.title3.bold())
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                        Image(systemName: "wave.3.forward")
+                            .font(.subheadline.bold())
+                    }
+                    .foregroundStyle(Color.ufpsRed)
+                }
+
+                Text("¡Ayúdanos a crecer nuestra audiencia!")
+                    .font(.headline.bold())
+                    .multilineTextAlignment(.center)
+
+                Text(
+                    listenersCount == 1
+                        ? "Ahora mismo hay 1 persona conectada en la app. Invita a tus amigos, compañeros o docentes a sintonizar UFPS Radio 95.2 FM."
+                        : "Ahora mismo hay \(listenersCount) personas conectadas en la app. Invita a tus amigos, compañeros o docentes a sintonizar UFPS Radio 95.2 FM."
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 6)
+            }
+
+            HStack(spacing: 14) {
+                InviteChannelButton(title: "WhatsApp") {
+                    WhatsAppMonoIcon()
+                } action: {
+                    openWhatsApp()
+                }
+
+                InviteChannelButton(title: "iMessage") {
+                    Image(systemName: "message.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(Color.primary)
+                } action: {
+                    if MFMessageComposeViewController.canSendText() {
+                        showingMessageComposer = true
+                    } else {
+                        showingActivityShare = true
+                    }
+                }
+
+                InviteChannelButton(title: "Correo") {
+                    Image(systemName: "envelope.fill")
+                        .font(.system(size: 23, weight: .medium))
+                        .foregroundStyle(Color.primary)
+                } action: {
+                    if MFMailComposeViewController.canSendMail() {
+                        showingMailComposer = true
+                    } else {
+                        openMailFallback()
+                    }
+                }
+            }
+
+            Button {
+                showingActivityShare = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Compartir por otra app")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .foregroundStyle(.white)
+                .background(
+                    LinearGradient(
+                        colors: [Color.ufpsRed, Color.ufpsCrimson],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .presentationDetents([.height(345)])
+        .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showingMessageComposer) {
+            MessageComposerView(bodyText: shareMessage, logoImage: stationLogoImage)
+                .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showingMailComposer) {
+            MailComposerView(subject: mailSubject, bodyText: shareMessage, logoImage: stationLogoImage)
+                .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showingActivityShare) {
+            ActivityShareSheet(items: shareItems)
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func openWhatsApp() {
+        let encoded = shareMessage.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let appURL = URL(string: "whatsapp://send?text=\(encoded)") {
+            UIApplication.shared.open(appURL, options: [:]) { opened in
+                if !opened, let webURL = URL(string: "https://wa.me/?text=\(encoded)") {
+                    openURL(webURL)
+                }
+            }
+        }
+    }
+
+    private func openMailFallback() {
+        let subj = mailSubject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let body = shareMessage.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let mailURL = URL(string: "mailto:?subject=\(subj)&body=\(body)") {
+            openURL(mailURL)
+        }
+    }
+}
+
+private struct MessageComposerView: UIViewControllerRepresentable {
+    let bodyText: String
+    let logoImage: UIImage?
+    @Environment(\.dismiss) private var dismiss
+
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
+
+    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        let vc = MFMessageComposeViewController()
+        vc.messageComposeDelegate = context.coordinator
+        vc.body = bodyText
+        if let data = logoImage?.pngData(), MFMessageComposeViewController.canSendAttachments() {
+            vc.addAttachmentData(data, typeIdentifier: "public.png", filename: "UFPS_Radio_95.2FM.png")
+        }
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: MFMessageComposeViewController, context: Context) {}
+
+    final class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
+        let dismiss: DismissAction
+        init(dismiss: DismissAction) { self.dismiss = dismiss }
+        func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
+            dismiss()
+        }
+    }
+}
+
+private struct MailComposerView: UIViewControllerRepresentable {
+    let subject: String
+    let bodyText: String
+    let logoImage: UIImage?
+    @Environment(\.dismiss) private var dismiss
+
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let vc = MFMailComposeViewController()
+        vc.mailComposeDelegate = context.coordinator
+        vc.setSubject(subject)
+        vc.setMessageBody(bodyText, isHTML: false)
+        if let data = logoImage?.pngData() {
+            vc.addAttachmentData(data, mimeType: "image/png", fileName: "UFPS_Radio_95.2FM.png")
+        }
+        return vc
+    }
+
+    func updateUIViewController(_ uiViewController: MFMailComposeViewController, context: Context) {}
+
+    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        let dismiss: DismissAction
+        init(dismiss: DismissAction) { self.dismiss = dismiss }
+        func mailComposeViewController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
+            dismiss()
+        }
+    }
+}
+
+private struct ActivityShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+private struct InviteChannelButton<Icon: View>: View {
+    let title: String
+    @ViewBuilder let icon: () -> Icon
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                icon()
+                    .frame(width: 28, height: 28)
+                    .frame(width: 54, height: 54)
+                    .background(
+                        Color(.secondarySystemBackground),
+                        in: Circle()
+                    )
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Crisp vector WhatsApp logo (speech bubble with bottom-left tail + phone handset), monochrome Color.primary.
+private struct WhatsAppMonoIcon: View {
+    var body: some View {
+        ZStack {
+            WhatsAppBubbleShape()
+                .stroke(Color.primary, style: StrokeStyle(lineWidth: 2.1, lineCap: .round, lineJoin: .round))
+
+            Image(systemName: "phone.fill")
+                .font(.system(size: 11.5, weight: .bold))
+                .foregroundStyle(Color.primary)
+                .rotationEffect(.degrees(10))
+                .offset(x: 0.4, y: -0.3)
+        }
+        .padding(1)
+    }
+}
+
+private struct WhatsAppBubbleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width
+        let h = rect.height
+        let cx = w * 0.52
+        let cy = h * 0.48
+        let r = min(w, h) * 0.44
+        var p = Path()
+
+        // Main circle arc leaving a gap at bottom-left for the classic WhatsApp tail
+        p.addArc(
+            center: CGPoint(x: cx, y: cy),
+            radius: r,
+            startAngle: .degrees(148),
+            endAngle: .degrees(115),
+            clockwise: false
+        )
+        // Bottom-left pointed tail
+        p.addLine(to: CGPoint(x: w * 0.06, y: h * 0.94))
+        p.closeSubpath()
+        return p
     }
 }
 

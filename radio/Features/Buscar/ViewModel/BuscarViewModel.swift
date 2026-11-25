@@ -62,7 +62,17 @@ final class BuscarViewModel {
         defer { isSearching = false }
 
         do {
-            let catalog = try await loadCatalog(profile: profile)
+            async let catalogTask = loadCatalog(profile: profile)
+            async let podcastMatchesTask: [PodcastSearchMatch] = {
+                do {
+                    return try await podcastService.episodes(matching: terms)
+                } catch {
+                    print("BuscarViewModel: podcast search failed:", error)
+                    return []
+                }
+            }()
+
+            let (catalog, rawPodcastMatches) = try await (catalogTask, podcastMatchesTask)
 
             let programHits = catalog.programs
                 .compactMap { programa -> ProgramHit? in
@@ -84,14 +94,18 @@ final class BuscarViewModel {
                 }
                 .sorted { ($0.matches, $0.event.date) > ($1.matches, $1.event.date) }
 
-            var podcastHits: [PodcastHit] = []
-            do {
-                podcastHits = try await podcastService.episodes(matching: terms)
-                    .map { PodcastHit(episode: $0.episode, matches: $0.matches) }
-                    .sorted { ($0.matches, $0.episode.airDate) > ($1.matches, $1.episode.airDate) }
-            } catch {
-                print("BuscarViewModel: podcast search failed:", error)
-            }
+            let podcastHits = rawPodcastMatches
+                .map {
+                    PodcastHit(
+                        episode: $0.episode,
+                        matches: $0.matches,
+                        snippet: $0.snippet,
+                        startSeconds: $0.startSeconds,
+                        matchedChunkIndex: $0.matchedChunkIndex,
+                        searchTerms: terms
+                    )
+                }
+                .sorted { ($0.matches, $0.episode.airDate) > ($1.matches, $1.episode.airDate) }
 
             results = SearchResults(
                 programs: programHits,

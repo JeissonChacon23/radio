@@ -1,12 +1,5 @@
 // radio/Features/Auth/ViewModel/AuthViewModel.swift
 
-//
-//  AuthViewModel.swift
-//  radio
-//
-//  Created by Foster Chacon on 22/10/26.
-//
-
 import Foundation
 import Observation
 
@@ -26,6 +19,14 @@ final class AuthViewModel {
             infoMessage = nil
         }
     }
+    var firstName = ""
+    var lastName = ""
+    var phone = "" {
+        didSet {
+            let digits = String(phone.filter(\.isNumber).prefix(15))
+            if digits != phone { phone = digits }
+        }
+    }
     var email = ""
     var password = ""
     var confirmPassword = ""
@@ -33,6 +34,18 @@ final class AuthViewModel {
     var infoMessage: String?
 
     private(set) var isWorking = false
+
+    private var trimmedFirstName: String {
+        firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedLastName: String {
+        lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedPhone: String {
+        phone.filter(\.isNumber)
+    }
 
     private var trimmedEmail: String {
         email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -48,7 +61,13 @@ final class AuthViewModel {
 
     var canSubmit: Bool {
         guard isValidEmail, password.count >= 6 else { return false }
-        return mode == .signIn || password == confirmPassword
+        if mode == .signUp {
+            return !trimmedFirstName.isEmpty
+                && !trimmedLastName.isEmpty
+                && trimmedPhone.count >= 7
+                && password == confirmPassword
+        }
+        return true
     }
 
     func submit(using session: SessionStore) async {
@@ -62,7 +81,13 @@ final class AuthViewModel {
             case .signIn:
                 try await session.signIn(email: trimmedEmail, password: password)
             case .signUp:
-                try await session.signUp(email: trimmedEmail, password: password)
+                try await session.signUp(
+                    firstName: trimmedFirstName,
+                    lastName: trimmedLastName,
+                    phone: trimmedPhone,
+                    email: trimmedEmail,
+                    password: password
+                )
             }
         } catch {
             errorMessage = AuthErrorMessage.text(for: error)

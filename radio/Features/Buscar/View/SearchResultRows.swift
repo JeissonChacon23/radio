@@ -40,11 +40,11 @@ struct EventHitRow: View {
                 .font(.headline)
             Label(event.dateRangeText, systemImage: "calendar")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondary, Color.ufpsRed)
             if !event.specialGuest.isEmpty {
                 Label("Invitado: \(event.specialGuest)", systemImage: "person.fill")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.primary, Color.ufpsRed)
             }
             if !event.description.isEmpty {
                 Text(event.description)
@@ -68,12 +68,12 @@ struct EventHitDetailView: View {
                     .font(.title2.bold())
 
                 Label(event.dateRangeText, systemImage: "calendar.badge.clock")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary, Color.ufpsRed)
 
                 if !event.specialGuest.isEmpty {
                     Label("Invitado especial: \(event.specialGuest)", systemImage: "person.crop.circle.badge.checkmark")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(.primary, Color.ufpsRed)
                 }
 
                 if !event.description.isEmpty {

@@ -22,8 +22,11 @@ final class RadioPlayerManager {
 
     private(set) var status: Status = .idle
 
-    /// Devices listening to the radio right now (nil until it is known).
+    /// App users listening to the radio right now in real time (RF05 / HU-03).
     private(set) var listenersCount: Int?
+
+    /// Active listener records in real time.
+    private(set) var activeListeners: [ActiveListenerRecord] = []
 
     /// True while the user wants to listen (connecting or playing).
     var isActive: Bool {
@@ -47,6 +50,7 @@ final class RadioPlayerManager {
     @ObservationIgnored private let presence = ListenerPresenceService()
     @ObservationIgnored private var presenceTask: Task<Void, Never>?
     @ObservationIgnored private var countTask: Task<Void, Never>?
+    @ObservationIgnored private var listenersRegistration: ListenerRegistration?
 
     init() {
         AudioFocus.register(.radio) { [weak self] in self?.stop() }
@@ -134,23 +138,23 @@ final class RadioPlayerManager {
     /// Called by the Inicio screen whenever the program on air changes.
     func setOnAir(name: String?, artworkId: String?) async {
         nowPlayingTitle = name
-        nowPlayingArtwork = nil
-        updateNowPlaying() // the title shows up right away
-
-        guard let artworkId else { return }
-        let data = await DriveImageLoader.loadData(id: artworkId, size: 1024)
-        guard !Task.isCancelled else { return } // another program started while loading
-
-        if let data, let image = UIImage(data: data) {
-            nowPlayingArtwork = Self.makeArtwork(from: image)
-            updateNowPlaying()
+        if nowPlayingArtwork == nil, let stationLogo = UIImage(named: "logo") {
+            nowPlayingArtwork = Self.makeArtwork(from: stationLogo)
         }
+        updateNowPlaying()
     }
 
     // MARK: - Listeners counter
 
     /// Refreshes the count every few seconds. The Inicio screen calls this while it is visible.
     func startListenersCount() {
+        if listenersRegistration == nil {
+            listenersRegistration = presence.observeActiveListeners { [weak self] records in
+                guard let self else { return }
+                self.activeListeners = records
+                self.listenersCount = Set(records.map(\.uid)).count
+            }
+        }
         guard countTask == nil else { return }
         countTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -161,6 +165,8 @@ final class RadioPlayerManager {
     }
 
     func stopListenersCount() {
+        listenersRegistration?.remove()
+        listenersRegistration = nil
         countTask?.cancel()
         countTask = nil
     }
@@ -176,8 +182,19 @@ final class RadioPlayerManager {
     }
 
     private func refreshListenersCount() async {
+        let cutoff = Date().addingTimeInterval(-ListenerPresenceService.activeWindow)
+        if !activeListeners.isEmpty {
+            let valid = activeListeners.filter { $0.lastSeen > cutoff }
+            if valid.count != activeListeners.count {
+                activeListeners = valid
+            }
+            listenersCount = Set(valid.map(\.uid)).count
+        }
         do {
-            listenersCount = try await presence.currentCount()
+            let count = try await presence.currentCount()
+            if listenersRegistration == nil || listenersCount == nil {
+                listenersCount = count
+            }
         } catch {
             print("RadioPlayerManager: could not read the listeners count:", error)
         }
@@ -362,10 +379,10 @@ final class RadioPlayerManager {
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyPlaybackRate: status == .playing ? 1.0 : 0.0
         ]
-        if let nowPlayingArtwork {
-            info[MPMediaItemPropertyArtwork] = nowPlayingArtwork
-        } else if let fallback = UIImage(named: "logo") {
-            info[MPMediaItemPropertyArtwork] = Self.makeArtwork(from: fallback)
+        if let stationLogo = UIImage(named: "logo") {
+            let logoArtwork = nowPlayingArtwork ?? Self.makeArtwork(from: stationLogo)
+            nowPlayingArtwork = logoArtwork
+            info[MPMediaItemPropertyArtwork] = logoArtwork
         }
         center.nowPlayingInfo = info
     }

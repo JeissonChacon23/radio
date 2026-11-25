@@ -73,19 +73,23 @@ extension Evento {
         return endClock.isEmpty ? "\(startPart) – \(endDay)" : "\(startPart) – \(endDay) · \(endClock)"
     }
 
+    /// Formats time in 24-hour military format ("HH:mm", e.g. "08:00", "14:30").
     static func formattedTime(_ hhmm: String, fallbackDate: Date?) -> String {
         let parts = hhmm.split(separator: ":").compactMap { Int($0) }
         if parts.count == 2 {
-            let date = Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: .now) ?? .now
-            return date.formatted(date: .omitted, time: .shortened)
+            let h = min(max(parts[0], 0), 23)
+            let m = min(max(parts[1], 0), 59)
+            return String(format: "%02d:%02d", h, m)
         }
         if let fallbackDate {
             let comps = Calendar.current.dateComponents([.hour, .minute], from: fallbackDate)
+            let h = comps.hour ?? 0
+            let m = comps.minute ?? 0
             // Legacy events without explicit time were saved at 12:00:00
-            if comps.hour == 12 && comps.minute == 0 {
+            if h == 12 && m == 0 {
                 return ""
             }
-            return fallbackDate.formatted(date: .omitted, time: .shortened)
+            return String(format: "%02d:%02d", h, m)
         }
         return ""
     }

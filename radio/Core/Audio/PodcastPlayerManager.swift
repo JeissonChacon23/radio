@@ -28,6 +28,7 @@ final class PodcastPlayerManager {
     @ObservationIgnored private var player: AVPlayer?
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var wantsToPlay = false
+    @ObservationIgnored private var pendingStartSeconds: Double?
     @ObservationIgnored private var candidateURLs: [URL] = []
     @ObservationIgnored private var candidateIndex = 0
     @ObservationIgnored private var artwork: MPMediaItemArtwork?
@@ -53,9 +54,14 @@ final class PodcastPlayerManager {
 
     // MARK: - Public API
 
-    func play(_ episode: PodcastEpisode) {
+    func play(_ episode: PodcastEpisode, startAt startSeconds: Double? = nil) {
         if current?.id == episode.id, player != nil {
-            togglePlayPause() // tapping the episode that is already loaded
+            if let startSeconds, startSeconds > 0 {
+                seek(to: startSeconds)
+                if !isPlaying { resume() }
+            } else {
+                togglePlayPause() // tapping the episode that is already loaded
+            }
             return
         }
 
@@ -64,10 +70,11 @@ final class PodcastPlayerManager {
         artworkTask?.cancel()
 
         current = episode
-        currentTime = 0
+        currentTime = startSeconds ?? 0
         duration = 0
         artwork = nil
         wantsToPlay = true
+        pendingStartSeconds = startSeconds
         status = .loading
         setSkipCommands(enabled: true)
 
@@ -184,6 +191,11 @@ final class PodcastPlayerManager {
                     let seconds = item.duration.seconds
                     if seconds.isFinite, seconds > 0 {
                         self.duration = seconds
+                    }
+                    if let target = self.pendingStartSeconds, target > 0 {
+                        self.pendingStartSeconds = nil
+                        self.seek(to: target)
+                    } else {
                         self.updateNowPlaying()
                     }
                 default:
@@ -256,13 +268,8 @@ final class PodcastPlayerManager {
     // MARK: - Lock screen and system events
 
     private func loadArtwork(for episode: PodcastEpisode) {
-        guard let imageId = episode.imageId else { return }
-        artworkTask = Task { [weak self] in
-            guard let data = await DriveImageLoader.loadData(id: imageId, size: 1024),
-                  !Task.isCancelled,
-                  let image = UIImage(data: data) else { return }
-            guard let self, self.current?.id == episode.id else { return }
-            self.artwork = Self.makeArtwork(from: image)
+        if let stationLogo = UIImage(named: "logo") {
+            self.artwork = Self.makeArtwork(from: stationLogo)
             self.updateNowPlaying()
         }
     }
@@ -359,6 +366,10 @@ final class PodcastPlayerManager {
         }
         if let artwork {
             info[MPMediaItemPropertyArtwork] = artwork
+        } else if let stationLogo = UIImage(named: "logo") {
+            let logoArtwork = Self.makeArtwork(from: stationLogo)
+            self.artwork = logoArtwork
+            info[MPMediaItemPropertyArtwork] = logoArtwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }

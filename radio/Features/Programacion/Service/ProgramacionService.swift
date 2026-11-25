@@ -21,7 +21,7 @@ struct ProgramacionService {
             }
     }
 
-    private nonisolated static func programa(from doc: QueryDocumentSnapshot) -> Programa? {
+    nonisolated static func programa(from doc: QueryDocumentSnapshot) -> Programa? {
         let data = doc.data()
         guard (data["active"] as? Bool) ?? true,
               let name = data["name"] as? String,

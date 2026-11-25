@@ -2,6 +2,38 @@
 
 import SwiftUI
 
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "Sistema"
+        case .light: "Claro"
+        case .dark: "Oscuro"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .system: "circle.lefthalf.filled"
+        case .light: "sun.max.fill"
+        case .dark: "moon.fill"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
 extension Color {
     /// Rojo institucional UFPS (#D91023 en modo claro, #EC293B en modo oscuro).
     static let ufpsRed = Color("AccentColor")
@@ -15,6 +47,7 @@ extension Color {
 
 struct RootView: View {
     @Environment(SessionStore.self) private var session
+    @AppStorage("appAppearance") private var appearance: AppAppearance = .system
 
     var body: some View {
         Group {
@@ -44,11 +77,16 @@ struct RootView: View {
                     Text(message)
                 } actions: {
                     Button("Reintentar") { Task { await session.start() } }
+                        .buttonStyle(.bordered)
+                        .foregroundStyle(.primary)
                     Button("Usar otra cuenta") { session.signOut() }
+                        .buttonStyle(.bordered)
+                        .foregroundStyle(.primary)
                 }
             }
         }
         .tint(Color.ufpsRed)
+        .preferredColorScheme(appearance.colorScheme)
         .task {
             guard !RuntimeEnvironment.isPreview else { return }
             await session.start()

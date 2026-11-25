@@ -16,12 +16,16 @@ struct DriveArtworkView: View {
                 if let image {
                     Image(uiImage: image)
                         .resizable()
+                        .interpolation(.high)
+                        .antialiased(true)
                         .scaledToFill()
                 } else {
                     ZStack {
                         Color.white
                         Image("logo")
                             .resizable()
+                            .interpolation(.high)
+                            .antialiased(true)
                             .scaledToFit()
                     }
                 }

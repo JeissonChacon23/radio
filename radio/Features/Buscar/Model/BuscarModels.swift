@@ -68,6 +68,27 @@ struct EventHit: Identifiable, Hashable {
 struct PodcastHit: Identifiable, Hashable {
     let episode: PodcastEpisode
     let matches: Int
+    let snippet: String?
+    let startSeconds: Double?
+    let matchedChunkIndex: Int?
+    let searchTerms: [String]
+
+    init(
+        episode: PodcastEpisode,
+        matches: Int,
+        snippet: String? = nil,
+        startSeconds: Double? = nil,
+        matchedChunkIndex: Int? = nil,
+        searchTerms: [String] = []
+    ) {
+        self.episode = episode
+        self.matches = matches
+        self.snippet = snippet
+        self.startSeconds = startSeconds
+        self.matchedChunkIndex = matchedChunkIndex
+        self.searchTerms = searchTerms
+    }
+
     var id: String { episode.id }
 }
 
@@ -77,13 +98,4 @@ struct SearchResults {
     var podcasts: [PodcastHit] = []
 
     var isEmpty: Bool { programs.isEmpty && events.isEmpty && podcasts.isEmpty }
-}
-
-struct PodcastResult: Identifiable, Hashable {
-    let id: String
-    let programName: String
-    let airDate: Date
-    let imageId: String?
-    let audioId: String?
-    let matches: Int
 }
